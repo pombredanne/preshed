@@ -1,9 +1,9 @@
-# cython: profile=True
 cimport cython
 
 
 DEF EMPTY_KEY = 0
 DEF DELETED_KEY = 1
+
 
 cdef class PreshMap:
     """Hash map that assumes keys come pre-hashed. Uses open addressing with
@@ -92,7 +92,7 @@ cdef void map_set(Pool mem, MapStruct* map_, key_t key, void* value) except *:
         cell.key = key
         map_.filled += 1
     cell.value = value
-    if (map_.filled + 1) * 4 >= (map_.length * 3):
+    if (map_.filled + 1) * 5 >= (map_.length * 3):
         _resize(mem, map_)
 
 
@@ -103,6 +103,13 @@ cdef void* map_get(const MapStruct* map_, const key_t key) nogil:
         return map_.value_for_del_key
     cdef Cell* cell = _find_cell(map_.cells, map_.length, key)
     return cell.value
+
+
+cdef void* map_bulk_get(const MapStruct* map_, const key_t* keys, void** values,
+                        int n) nogil:
+    cdef int i
+    for i in range(n):
+        values[i] = map_get(map_, keys[i])
 
 
 cdef bint map_iter(const MapStruct* map_, int* i, key_t* key, void** value) nogil:
@@ -134,9 +141,9 @@ cdef bint map_iter(const MapStruct* map_, int* i, key_t* key, void** value) nogi
 
 
 @cython.cdivision
-cdef inline Cell* _find_cell(const Cell* cells, const size_t size, const key_t key) nogil:
+cdef inline Cell* _find_cell(Cell* cells, const key_t size, const key_t key) nogil:
     # Modulo for powers-of-two via bitwise &
-    cdef size_t i = (key & (size - 1))
+    cdef key_t i = (key & (size - 1))
     while cells[i].key != 0 and cells[i].key != key:
         i = (i + 1) & (size - 1)
     return &cells[i]
@@ -157,5 +164,3 @@ cdef void _resize(Pool mem, MapStruct* map_) except *:
         if old_cells[i].key != EMPTY_KEY and old_cells[i].key != DELETED_KEY:
             map_set(mem, map_, old_cells[i].key, old_cells[i].value)
     mem.free(old_cells)
-
-

@@ -14,10 +14,14 @@ cdef struct MapStruct:
     Cell* cells
     void* value_for_empty_key
     void* value_for_del_key
-    size_t length
-    size_t filled
+    key_t length
+    key_t filled
     bint is_empty_key_set
     bint is_del_key_set
+
+
+cdef void* map_bulk_get(const MapStruct* map_, const key_t* keys, void** values,
+                        int n) nogil
 
 
 cdef void* map_get(const MapStruct* map_, const key_t key) nogil

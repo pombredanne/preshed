@@ -99,9 +99,9 @@ cdef class GaleSmoother:
         if r == 0:
             return self.Nr[1] / self.Nr0
         elif r < self.cutoff:
-            return turing_estimate_of_r(r, self.Nr[r-1], self.Nr[r])
+            return turing_estimate_of_r(<double>r, <double>self.Nr[r-1], <double>self.Nr[r])
         else:
-            return gale_estimate_of_r(r, self.gradient, self.intercept)
+            return gale_estimate_of_r(<double>r, self.gradient, self.intercept)
 
     def count_count(self, count_t r):
         if r == 0:
@@ -135,8 +135,8 @@ cdef void _fit_loglinear_model(double* output, count_t* sorted_r, count_t* Nr,
     cdef int i
     for i in range(length):
         r = sorted_r[i]
-        x[i] = log(r)
-        y[i] = log(_get_zr(i, sorted_r, Nr[i], length))
+        x[i] = log(<double>r)
+        y[i] = log(<double>_get_zr(i, sorted_r, Nr[i], length))
         x_mean += x[i]
         y_mean += y[i]
     
@@ -182,8 +182,8 @@ cdef count_t _find_when_to_switch(count_t* sorted_r, count_t* Nr, double m, doub
         if sorted_r[i+1] != r+1:
             return r
         g_r = gale_estimate_of_r(r, m, b)
-        t_r = turing_estimate_of_r(r, Nr[i], Nr[i+1])
-        if abs(t_r - g_r) <= _variance(r, Nr[i], Nr[i+1]):
+        t_r = turing_estimate_of_r(<double>r, <double>Nr[i], <double>Nr[i+1])
+        if abs(t_r - g_r) <= _variance(<double>r, <double>Nr[i], <double>Nr[i+1]):
             return r
     else:
         return length - 1

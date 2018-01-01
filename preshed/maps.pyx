@@ -1,3 +1,6 @@
+# cython: infer_types=True
+# cython: cdivision=True
+#
 cimport cython
 
 
@@ -6,8 +9,16 @@ DEF DELETED_KEY = 1
 
 
 cdef class PreshMap:
-    """Hash map that assumes keys come pre-hashed. Uses open addressing with
-    linear probing.
+    """Hash map that assumes keys come pre-hashed. Maps uint64_t --> uint64_t.
+    Uses open addressing with linear probing.
+
+    Usage
+        map = PreshMap() # Create a table
+        map = PreshMap(initial_size=1024) # Create with initial size (efficiency)
+        map[key] = value # Set a value to a key
+        value = map[key] # Get a value given a key
+        for key, value in map.items(): # Iterate over items
+        len(map) # Get number of inserted keys
     """
     def __init__(self, size_t initial_size=8):
         # Size must be power of two
@@ -22,7 +33,7 @@ cdef class PreshMap:
         self.c_map = <MapStruct*>self.mem.alloc(1, sizeof(MapStruct))
         map_init(self.mem, self.c_map, initial_size)
 
-    property length:
+    property capacity:
         def __get__(self):
             return self.c_map.length
 
@@ -41,6 +52,11 @@ cdef class PreshMap:
         for _, value in self.items():
             yield value
 
+    def pop(self, key_t key, default=None):
+        cdef void* value = map_get(self.c_map, key)
+        map_clear(self.c_map, key)
+        return <size_t>value if value != NULL else default
+
     def __getitem__(self, key_t key):
         cdef void* value = map_get(self.c_map, key)
         return <size_t>value if value != NULL else None
@@ -48,8 +64,11 @@ cdef class PreshMap:
     def __setitem__(self, key_t key, size_t value):
         map_set(self.mem, self.c_map, key, <void*>value)
 
+    def __delitem__(self, key_t key):
+        map_clear(self.c_map, key)
+
     def __len__(self):
-        return self.length
+        return self.c_map.filled
 
     def __contains__(self, key_t key):
         cdef void* value = map_get(self.c_map, key)
@@ -114,6 +133,22 @@ cdef void* map_get(const MapStruct* map_, const key_t key) nogil:
         return map_.value_for_del_key
     cdef Cell* cell = _find_cell(map_.cells, map_.length, key)
     return cell.value
+
+
+cdef void* map_clear(MapStruct* map_, const key_t key) nogil:
+    if key == EMPTY_KEY:
+        value = map_.value_for_empty_key if map_.is_empty_key_set else NULL
+        map_.is_empty_key_set = False
+        return value
+    elif key == DELETED_KEY:
+        value = map_.value_for_del_key if map_.is_del_key_set else NULL
+        map_.is_del_key_set = False
+        return value
+    else:
+        cell = _find_cell(map_.cells, map_.length, key)
+        cell.key = DELETED_KEY
+        map_.filled -= 1
+        return cell.value
 
 
 cdef void* map_bulk_get(const MapStruct* map_, const key_t* keys, void** values,
